@@ -194,10 +194,33 @@ class OneBookShelfSource(Source):
             print(f"DEBUG: Query generated: '{query}'")
             log.info(f'Searching API (v2) for: {query}')
             try:
-                # API Call 1: Search
+                # Strategy 1: Title + Author (Strict)
                 matches = self._api_search(query, timeout, log)
+                
+                # Strategy 2: Title Only (Broad)
+                if not matches and authors:
+                    log.info("S1 Failed. Trying Title Only...")
+                    q2 = self._create_query(title, [])
+                    if q2 != query:
+                         matches = self._api_search(q2, timeout, log)
+
+                # Strategy 3: Cleaned Title (No v1.0, parens)
                 if not matches:
-                    log.info('No results found via API.')
+                    clean_title = self._clean_title(title)
+                    if clean_title != title:
+                        log.info(f"S2 Failed. Trying Cleaned Title: '{clean_title}'")
+                        matches = self._api_search(clean_title, timeout, log)
+                        
+                        # Strategy 4: First 4 words of Cleaned Title (Fuzzyish)
+                        if not matches:
+                            words = clean_title.split()
+                            if len(words) > 4:
+                                short_title = " ".join(words[:4])
+                                log.info(f"S3 Failed. Trying Short Title: '{short_title}'")
+                                matches = self._api_search(short_title, timeout, log)
+
+                if not matches:
+                    log.info('No results found via API after all attempts.')
                     return
                 
                 # Use first match
@@ -239,6 +262,9 @@ class OneBookShelfSource(Source):
                 pid = attrs.get('entityId')
                 name = attrs.get('name')
                 if pid and name:
+                    # Filter out "Fantasy Grounds" content
+                    if 'fantasy grounds' in name.lower():
+                        continue
                     results.append({'id': pid, 'name': name})
         return results
 
@@ -314,6 +340,15 @@ class OneBookShelfSource(Source):
         if authors:
             tokens.append(authors[0]) 
         return " ".join(tokens)
+
+    def _clean_title(self, title):
+        if not title: return ""
+        # Remove version numbers like v1.0, v2
+        t = re.sub(r'(?i)\b(v|ver|vol)\.?\s*\d+(\.\d+)*\b', '', title)
+        # Remove content in brackets/parens like (2020) or [PDF]
+        t = re.sub(r'[\(\[].*?[\)\]]', '', t)
+        # Remove extra whitespace
+        return ' '.join(t.split())
 
     def download_cover(self, log, result_queue, abort, title=None, authors=None, identifiers={}, timeout=30, get_best_cover=False):
         cached_url = self.get_cached_cover_url(identifiers)

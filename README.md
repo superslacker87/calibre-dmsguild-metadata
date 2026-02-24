@@ -84,7 +84,7 @@ Look at the product's URL in your browser. The ID is the number immediately foll
 
 ## Troubleshooting
 
--   **403 Forbidden Error:** Your cookie is invalid or expired. Get a new `cf_clearance` cookie from Firefox.
+-   **403 Forbidden Error:** Your cookie is invalid or expired. Get a new `cf_clearance` cookie from your browser.
 -   **No Results:** Try forcing the specific ID in the metadata ids field.
 
 ## License
